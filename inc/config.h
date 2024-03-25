@@ -1,3 +1,11 @@
+/**
+ * @file config.h
+ * @author Ali Nasrolahi (a.nasrolahi01@gmail.com)
+ * @date 2024-03-25
+ */
+#include <assert.h>
+#include <stdint.h>
+
 #ifndef CONFIG_H
 #define CONFIG_H
 

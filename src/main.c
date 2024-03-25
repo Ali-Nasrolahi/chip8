@@ -14,6 +14,8 @@
 
 int main(int argc, char **argv)
 {
+    struct chip8 CHIP8;
+
     SDL_Init(SDL_INIT_EVERYTHING);
 
     SDL_Window *window =
