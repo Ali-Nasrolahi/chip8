@@ -5,6 +5,7 @@
  */
 #include <assert.h>
 #include <stdint.h>
+#include <string.h>
 
 #ifndef CONFIG_H
 #define CONFIG_H

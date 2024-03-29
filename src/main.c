@@ -7,15 +7,26 @@
 #include "chip8.h"
 
 #include <SDL2/SDL.h>
-#include <sys/param.h> /* MIN(...) */
-
-#define SCREEN_WIDTH 640
-#define SCREEN_HEIGHT 320
+#include <unistd.h>
 
 int main(int argc, char **argv)
 {
-    struct chip8 CHIP8;
+    struct chip8 chip;
+    SDL_Rect squareRect;
 
+    assert(argc > 1);
+
+    FILE *f = fopen(argv[1], "r");
+    assert(f);
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    char buf[size];
+    assert(fread(buf, size, 1, f) != 1);
+
+    chip8_init(&chip);
+    chip8_load(&chip, buf, size);
+
+    chip8_screen_draw_sprite(&chip, 62, 30, &chip.memory[0x0A], 5);
     SDL_Init(SDL_INIT_EVERYTHING);
 
     SDL_Window *window =
@@ -24,29 +35,45 @@ int main(int argc, char **argv)
 
     SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_TEXTUREACCESS_TARGET);
 
-    SDL_Rect squareRect;
-
-    squareRect.w = MIN(SCREEN_WIDTH, SCREEN_HEIGHT) / 2;
-    squareRect.h = MIN(SCREEN_WIDTH, SCREEN_HEIGHT) / 2;
-
-    squareRect.x = SCREEN_WIDTH / 2 - squareRect.w / 2;
-    squareRect.y = SCREEN_HEIGHT / 2 - squareRect.h / 2;
-
     while (1) {
 
         SDL_Event e;
         SDL_WaitEvent(&e);
 
-        if (e.type == SDL_QUIT)
+        switch (e.type) {
+        case SDL_QUIT:
+            goto quit;
+        case SDL_KEYUP:
+            chip8_keyboard_release(&chip, e.key.keysym.sym);
             break;
+        case SDL_KEYDOWN:
+            chip8_keyboard_hold(&chip, e.key.keysym.sym);
+            break;
+        }
 
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
         SDL_RenderClear(renderer);
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 0);
-        SDL_RenderFillRect(renderer, &squareRect);
+
+        for (int x = 0; x < CHIP8_SCREEN_WIDTH; ++x)
+            for (int y = 0; y < CHIP8_SCREEN_HEIGHT; ++y)
+                if (chip8_screen_is_set(&chip, x, y)) {
+                    squareRect.x = x * CHIP8_WINDOW_SCALE_RATIO;
+                    squareRect.y = y * CHIP8_WINDOW_SCALE_RATIO;
+                    squareRect.w = CHIP8_WINDOW_SCALE_RATIO;
+                    squareRect.h = CHIP8_WINDOW_SCALE_RATIO;
+                    SDL_RenderFillRect(renderer, &squareRect);
+                }
         SDL_RenderPresent(renderer);
+
+        if (chip.dt)
+            sleep(100), --chip.dt;
+
+        chip8_exec(&chip, chip8_mem_getw(&chip, chip.pc));
+        chip.pc += 2;
     }
 
+quit:
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
 
