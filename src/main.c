@@ -69,8 +69,8 @@ int main(int argc, char **argv)
         if (chip.dt)
             sleep(100), --chip.dt;
 
-        chip8_exec(&chip, chip8_mem_getw(&chip, chip.pc));
         chip.pc += 2;
+        chip8_exec(&chip, chip8_mem_getw(&chip, chip.pc));
     }
 
 quit:

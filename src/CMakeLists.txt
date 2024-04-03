@@ -1,4 +1,5 @@
 list(APPEND src
+    chip8.c
     main.c
 )
 

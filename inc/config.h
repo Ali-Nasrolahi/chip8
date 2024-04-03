@@ -3,12 +3,12 @@
  * @author Ali Nasrolahi (a.nasrolahi01@gmail.com)
  * @date 2024-03-25
  */
+#ifndef CONFIG_H
+#define CONFIG_H
+
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
-
-#ifndef CONFIG_H
-#define CONFIG_H
 
 #define CHIP8_MEM_SIZE (4096)
 

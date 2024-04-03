@@ -53,8 +53,6 @@ void chip8_load(struct chip8 *c, const char *buf, size_t size)
     c->pc = 0x200;
 }
 
-void chip8_exec(struct chip8 *c, uint16_t opcode) {}
-
 void chip8_mem_set(struct chip8 *c, uint16_t addr, uint8_t val)
 {
     assert(addr >= 0 && addr < CHIP8_MEM_SIZE);
@@ -133,4 +131,37 @@ uint8_t chip8_screen_draw_sprite(struct chip8 *c, uint8_t x, uint8_t y, const ch
     return col;
 }
 
+void chip8_screen_clear(struct chip8 *c) { memset(c->screen, 0, sizeof(c->screen)); }
+
+void chip8_exec(struct chip8 *c, uint16_t opcode)
+{
+    uint16_t nnn = opcode & 0x0fff;
+    uint16_t kk = opcode & 0x00ff;
+    uint16_t x = opcode & 0x0f00;
+    uint16_t y = opcode & 0x00f0;
+    uint16_t o = opcode & 0xf000;
+
+    switch (opcode) {
+    case 0x00e0:
+        chip8_screen_clear(c);
+        return;
+    case 0x00ee:
+        c->sp = chip8_stack_pop(c);
+        return;
+    }
+
+    switch (o) {
+    case 1:
+        c->pc = nnn;
+        break;
+    case 2:
+        chip8_stack_push(c, c->pc);
+        c->pc = nnn;
+        break;
+    case 3:
+        if (c->V[x] == kk)
+            c->pc += 2;
+        break;
+    }
+}
 #endif /* CHIP8_H */
