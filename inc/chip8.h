@@ -20,7 +20,7 @@ extern const uint8_t chip8_keyboard_map[];
 struct chip8 {
 
     /* Registers */
-    uint8_t V[16];
+    uint8_t v[16];
     uint8_t dt; /* Delay timer*/
     uint8_t st; /* Sound timer */
     uint8_t sp; /* Stack pointer */
@@ -144,10 +144,10 @@ void chip8_exec(struct chip8 *c, uint16_t opcode)
     switch (opcode) {
     case 0x00e0:
         chip8_screen_clear(c);
-        return;
+        break;
     case 0x00ee:
         c->sp = chip8_stack_pop(c);
-        return;
+        break;
     }
 
     switch (o) {
@@ -159,9 +159,104 @@ void chip8_exec(struct chip8 *c, uint16_t opcode)
         c->pc = nnn;
         break;
     case 3:
-        if (c->V[x] == kk)
+        if (c->v[x] == kk)
             c->pc += 2;
         break;
+    case 4:
+        if (c->v[x] != kk)
+            c->pc += 2;
+        break;
+    case 5:
+        if (c->v[x] == c->v[y])
+            c->pc += 2;
+        break;
+    case 6:
+        c->v[x] == kk;
+        break;
+    case 7:
+        c->v[x] += kk;
+        break;
+    /* Skip 8 */
+    case 9:
+        if (c->v[x] != c->v[y])
+            c->pc += 2;
+        break;
+    case 0xa:
+        c->I = nnn;
+        break;
+
+    case 0xb:
+        c->pc = nnn + c->v[0];
+        break;
+    case 0xc:
+        c->v[x] = 0xdada & kk;
+        break;
+    case 0xd:
+        /* TODO */
+        break;
+    }
+
+    if (o == 0x8) {
+        switch (opcode & 0xf) {
+        case 0:
+            c->v[x] = c->v[y];
+            break;
+        case 1:
+            c->v[x] |= c->v[y];
+            break;
+        case 2:
+            c->v[x] &= c->v[y];
+            break;
+        case 3:
+            c->v[x] ^= c->v[y];
+            break;
+        case 4:
+            c->v[x] ^= c->v[y];
+            break;
+        case 5:
+            c->v[0xf] |= (c->v[x] + c->v[y] > 255 ? 1 : 0);
+            c->v[x] = (c->v[x] + c->v[y]) & 0xff;
+            break;
+            /* TODO */
+        case 6:
+            break;
+        case 7:
+            break;
+        case 0xe:
+            break;
+        }
+    } else if (o == 0xf) {
+        switch (kk) {
+        case 0x07:
+            c->v[x] = c->dt;
+            break;
+        case 0x0a:
+            break;
+        case 0x15:
+            c->dt = c->v[x];
+            break;
+        case 0x18:
+            c->st = c->v[x];
+            break;
+        case 0x1E:
+            c->I += c->v[x];
+            break;
+        case 0x29:
+            break;
+        case 0x33:
+            break;
+        case 0x55:
+            break;
+        case 0x65:
+            break;
+        }
+
+    } else if (o == 0xe && kk == 0x9e) {
+        if (chip8_keyboard_is_held(c, c->v[x]))
+            c->pc += 2;
+    } else if (o == 0xe && kk == 0xa1) {
+        if (!chip8_keyboard_is_held(c, c->v[x]))
+            c->pc += 2;
     }
 }
 #endif /* CHIP8_H */
