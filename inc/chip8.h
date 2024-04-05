@@ -15,8 +15,6 @@ const uint8_t chip8_charset[] = {
 
 };
 
-extern const uint8_t chip8_keyboard_map[];
-
 struct chip8 {
 
     /* Registers */
@@ -31,10 +29,10 @@ struct chip8 {
     uint8_t memory[CHIP8_MEM_SIZE];
 
     /* Stack */
-    uint16_t stack[16];
+    uint16_t stack[0x10];
 
     /* Keyboard */
-    uint8_t keyboard[17];
+    uint8_t keyboard[0x10];
 
     /* Display */
     uint8_t screen[CHIP8_SCREEN_HEIGHT][CHIP8_SCREEN_WIDTH];
@@ -66,44 +64,44 @@ uint8_t chip8_mem_get(struct chip8 *c, uint16_t addr)
 
 uint16_t chip8_mem_getw(struct chip8 *c, uint16_t addr)
 {
-    return (c->memory[addr] << 8) | c->memory[addr];
+    return (c->memory[addr] << 8) | c->memory[addr + 1];
 }
 
-void chip8_stack_push(struct chip8 *c8, uint16_t val)
+void chip8_stack_push(struct chip8 *c, uint16_t val)
 {
-    assert(c8->sp + 1 < sizeof(c8->stack));
-    c8->stack[c8->sp] = val;
+    assert(c->sp < 0x10);
+    c->stack[++c->sp] = val;
 }
 
-uint8_t chip8_stack_pop(struct chip8 *c8)
+uint16_t chip8_stack_pop(struct chip8 *c)
 {
-    assert(c8->sp < sizeof(c8->stack));
-    return c8->stack[c8->sp--];
+    assert(c->sp < 0x10 && c->sp);
+    return c->stack[c->sp--];
 }
 
-void chip8_keyboard_release(struct chip8 *c, char k)
+void chip8_keyboard_release(struct chip8 *c, char k) { c->keyboard[k] = 0; }
+
+void chip8_keyboard_hold(struct chip8 *c, char k) { c->keyboard[k] = 1; }
+
+uint8_t chip8_keyboard_is_held(struct chip8 *c, uint8_t k) { return c->keyboard[k]; }
+
+int chip8_keyboard_map(char k)
 {
-    assert((k >= '0' && k <= '9') || (k >= 'a' && k <= 'f'));
-    k -= (k > '9' ? ('a' - 10) : '0');
-    c->keyboard[k] = 0;
+    for (int i = 0; i < 0x10; i++) {
+        if (keymap[i] == k)
+            return i;
+    }
+    return -1;
 }
 
-void chip8_keyboard_hold(struct chip8 *c, char k)
+uint8_t chip8_keyboard_wait_event(struct chip8 *c)
 {
-    assert((k >= '0' && k <= '9') || (k >= 'a' && k <= 'f'));
-    k -= (k > '9' ? ('a' - 10) : '0');
-    c->keyboard[k] = 1;
-}
-
-uint8_t chip8_keyboard_is_held(struct chip8 *c, char k)
-{
-    assert((k >= '0' && k <= '9') || (k >= 'a' && k <= 'f'));
-    /*
-     * ('0' to '9') - '0' --> 0-9
-     * ('a' to 'f') - 'a' + 10 --> 10-16
-     */
-    k -= (k > '9' ? ('a' - 10) : '0');
-    return c->keyboard[k];
+    SDL_Event e;
+    while (SDL_WaitEvent(&e)) {
+        if (e.type != SDL_KEYDOWN)
+            continue;
+        return chip8_keyboard_map(e.key.keysym.sym);
+    }
 }
 
 void chip8_screen_set_xy(struct chip8 *c, uint8_t x, uint8_t y)
@@ -118,7 +116,8 @@ uint8_t chip8_screen_is_set(struct chip8 *c, uint8_t x, uint8_t y)
     return c->screen[y][x];
 }
 
-uint8_t chip8_screen_draw_sprite(struct chip8 *c, uint8_t x, uint8_t y, const char *spr, uint8_t n)
+uint8_t chip8_screen_draw_sprite(struct chip8 *c, uint8_t x, uint8_t y, const uint8_t *spr,
+                                 uint8_t n)
 {
     uint8_t col = 0;
     for (uint8_t ly = 0; ly < n; ++ly)
@@ -137,26 +136,29 @@ void chip8_exec(struct chip8 *c, uint16_t opcode)
 {
     uint16_t nnn = opcode & 0x0fff;
     uint16_t kk = opcode & 0x00ff;
-    uint16_t x = opcode & 0x0f00;
-    uint16_t y = opcode & 0x00f0;
-    uint16_t o = opcode & 0xf000;
+    uint16_t x = (opcode & 0x0f00) >> 8;
+    uint16_t y = (opcode & 0x00f0) >> 4;
+    uint16_t o = (opcode & 0xf000) >> 12;
 
     switch (opcode) {
     case 0x00e0:
         chip8_screen_clear(c);
         break;
     case 0x00ee:
-        c->sp = chip8_stack_pop(c);
+        c->pc = chip8_stack_pop(c);
+        assert(c->pc >= 0x200);
         break;
     }
 
     switch (o) {
     case 1:
         c->pc = nnn;
+        assert(c->pc >= 0x200);
         break;
     case 2:
         chip8_stack_push(c, c->pc);
         c->pc = nnn;
+        assert(c->pc >= 0x200);
         break;
     case 3:
         if (c->v[x] == kk)
@@ -171,7 +173,7 @@ void chip8_exec(struct chip8 *c, uint16_t opcode)
             c->pc += 2;
         break;
     case 6:
-        c->v[x] == kk;
+        c->v[x] = kk;
         break;
     case 7:
         c->v[x] += kk;
@@ -187,12 +189,14 @@ void chip8_exec(struct chip8 *c, uint16_t opcode)
 
     case 0xb:
         c->pc = nnn + c->v[0];
+        assert(c->pc >= 0x200);
         break;
     case 0xc:
-        c->v[x] = 0xdada & kk;
+        srand(time(NULL));
+        c->v[x] = (uint8_t)(rand() & kk);
         break;
     case 0xd:
-        /* TODO */
+        c->v[0xf] = chip8_screen_draw_sprite(c, c->v[x], c->v[y], &c->memory[c->I], opcode & 0xf);
         break;
     }
 
@@ -211,18 +215,24 @@ void chip8_exec(struct chip8 *c, uint16_t opcode)
             c->v[x] ^= c->v[y];
             break;
         case 4:
-            c->v[x] ^= c->v[y];
-            break;
-        case 5:
-            c->v[0xf] |= (c->v[x] + c->v[y] > 255 ? 1 : 0);
+            c->v[0xf] |= (c->v[x] + c->v[y]) > 255;
             c->v[x] = (c->v[x] + c->v[y]) & 0xff;
             break;
-            /* TODO */
+        case 5:
+            c->v[0xf] = c->v[x] > c->v[y];
+            c->v[x] -= c->v[y];
+            break;
         case 6:
+            c->v[0xf] = c->v[x] & 0b1;
+            c->v[x] >>= 1;
             break;
         case 7:
+            c->v[0xf] = c->v[x] < c->v[y];
+            c->v[x] = c->v[y] - c->v[x];
             break;
         case 0xe:
+            c->v[0xf] = c->v[x] & (uint8_t)(1 << 7);
+            c->v[x] <<= 1;
             break;
         }
     } else if (o == 0xf) {
@@ -231,6 +241,7 @@ void chip8_exec(struct chip8 *c, uint16_t opcode)
             c->v[x] = c->dt;
             break;
         case 0x0a:
+            c->v[x] = chip8_keyboard_wait_event(c);
             break;
         case 0x15:
             c->dt = c->v[x];
@@ -242,12 +253,20 @@ void chip8_exec(struct chip8 *c, uint16_t opcode)
             c->I += c->v[x];
             break;
         case 0x29:
+            c->I = c->v[x] * 5;
             break;
         case 0x33:
+            chip8_mem_set(c, c->I, c->v[x] / 100);
+            chip8_mem_set(c, c->I + 1, (c->v[x] % 100) / 10);
+            chip8_mem_set(c, c->I + 2, c->v[x] % 10);
             break;
         case 0x55:
+            for (int i = 0; i <= x; ++i)
+                chip8_mem_set(c, c->I + i, c->v[i]);
             break;
         case 0x65:
+            for (int i = 0; i <= x; ++i)
+                c->v[i] = chip8_mem_get(c, c->I + i);
             break;
         }
 
