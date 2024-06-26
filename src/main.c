@@ -3,7 +3,6 @@
  * @author Ali Nasrolahi (a.nasrolahi01@gmail.com)
  * @date 2024-03-24
  */
-
 #include "chip8.h"
 
 #include <SDL2/SDL.h>
@@ -108,10 +107,7 @@ run:
         if (chip.dt)
             msleep(10), --chip.dt;
 
-        uint16_t opcode = chip8_mem_getw(&chip, chip.pc);
-        printf("PC: %x opcode: %x\n", chip.pc, opcode);
-        chip.pc += 2;
-        chip8_exec(&chip, opcode);
+        chip8_exec(&chip);
     }
 
 quit:
